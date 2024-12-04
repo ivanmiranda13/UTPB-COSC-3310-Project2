@@ -1,129 +1,113 @@
 section .data
-newline db 0x0a, 0x00
-nl_len equ $ - newline
+newline db 0x0a, 0x00          ; Newline character for output
+nl_len equ $ - newline          ; Length of newline
 nums db '0123456789'
-num0 dq 1
-num1 dq 1
-num2 dq 1
-count dq 2
-iter dq 10
+prime_msg db ' is prime.', 0
+not_prime_msg db ' is not prime.', 0
+
+section .bss
+num resq 1                  ; Reserve space for the current number
 
 section .text
 global _start
 
 _start:
+    mov rdi, 1                  ; Start with number 1
 
-init:
-mov rdx, 1
-mov rcx, nums
-add rcx, QWORD [num0]
-mov rbx, 1
-mov rax, 4
-int 0x80
+check_next:
+    cmp rdi, 100                ; Check if number >= 100
+    jge done                    ; If it’s 100 or greater, exit loop
 
-mov rdx, nl_len
-mov rcx, newline
-mov rbx, 1
-mov rax, 4
-int 0x80
+    mov rsi, rdi                ; Copy current number to rsi (for prime checking)
+    call is_prime               ; Call is_prime function to check primality
 
-mov rdx, 1
-mov rcx, nums
-add rcx, QWORD [num1]
-mov rbx, 1
-mov rax, 4
-int 0x80
+    ; Print number and whether it's prime or not
+    call print_number
 
-mov rdx, nl_len
-mov rcx, newline
-mov rbx, 1
-mov rax, 4
-int 0x80
+    cmp rax, 1                  ; If prime (rax = 1), print " is prime."
+    je print_prime
 
-loop_head:
-mov r10, QWORD [iter]
-cmp QWORD [count], r10
-jge loop_exit
+    ; Otherwise, print " is not prime."
+    mov rsi, not_prime_msg
+    call print_string
+    jmp print_newline
 
-loop_body:
-mov r10, QWORD [num0]
-mov QWORD [num2], r10
-mov r10, QWORD [num1]
-add QWORD [num0], r10
-mov r10, QWORD [num2]
-mov QWORD [num1], r10
+print_prime:
+    mov rsi, prime_msg          ; Print " is prime."
+    call print_string
+    jmp print_newline
 
-mov rdx, 1
-mov rcx, nums
+print_newline:
+    mov rsi, newline
+    call print_string           ; Print newline
+    inc rdi                     ; Increment the number
+    jmp check_next              ; Check next number
 
-cmp QWORD [num0], 10
-jge decomp
+done:
+    mov rax, 60                 ; Exit syscall
+    xor rdi, rdi                ; Return code 0
+    syscall
 
-add rcx, QWORD [num0]
-mov rbx, 1
-mov rax, 4
-int 0x80
+is_prime:
+    ; Check if the number in rsi is prime
+    ; rsi holds the number to check
+    
+    ; If number is 1, it’s not prime
+    cmp rsi, 1
+    je not_prime_label
 
-mov rdx, nl_len
-mov rcx, newline
-mov rbx, 1
-mov rax, 4
-int 0x80
+    ; Initialize divisor
+    mov rbx, 2
+    mov rdx, rsi                ; Copy the number to rdx (dividend)
 
-loop_tail:
-add QWORD [count], 1
-jmp loop_head
+    ; Check divisibility up to sqrt(n) approximation
+    ; We'll use a simple loop to check divisibility up to rsi / 2
+check_divisibility:
+    cmp rbx, rdx
+    jge prime_label             ; If divisor >= number, it’s prime
 
-loop_exit:
-mov rax, 1
-int 0x80
+    ; Divide rdx by rbx, remainder goes to rax, quotient to rdx
+    mov rax, rdx
+    xor rdx, rdx                ; Clear remainder
+    div rbx                      ; rdx = rdx % rbx, rax = rdx / rbx
 
-decomp:
-mov r13, 0
-mov r12, 0
-mov r11, [num0]
+    cmp rdx, 0                  ; If remainder is 0, number is divisible
+    je not_prime_label          ; If divisible, number is not prime
 
-decomp_head:
-cmp r11, 0
-je decomp_exit
+    inc rbx                     ; Otherwise, try next divisor
+    jmp check_divisibility
 
-decomp_body:
-mov rdx, 0
-mov rcx, 0
-mov rbx, 10
-mov rax, r11
-div rbx
+prime_label:
+    mov rax, 1                  ; Set rax to 1 (prime)
+    ret
 
-decomp_tail:
-push rdx
-add r13, 1
-mov r11, rax
+not_prime_label:
+    mov rax, 0                  ; Set rax to 0 (not prime)
+    ret
 
-jmp decomp_head
+print_number:
+    ; Print the current number in rdi
+    mov rax, rdi
+    ; Convert number to string for printing
+    mov rcx, nums
+    add rcx, rdi                ; Add rdi to point to correct digit
+    mov rbx, 1
+    mov rdx, 1
+    mov rax, 4                  ; Syscall for write
+    int 0x80
+    ret
 
-decomp_exit:
+print_string:
+    ; Print the string pointed to by rsi
+    mov rdx, 0
+find_end:
+    cmp byte [rsi + rdx], 0
+    je print_string_end
+    inc rdx
+    jmp find_end
 
-rev_print_head:
-cmp r13, 0
-je rev_print_exit
-
-rev_print_body:
-mov rdx, 1
-mov rcx, nums
-pop r11
-add rcx, r11
-mov rbx, 1
-mov rax, 4
-int 0x80
-
-rev_print_tail:
-sub r13, 1
-jmp rev_print_head
-
-rev_print_exit:
-mov rdx, nl_len
-mov rcx, newline
-mov rbx, 1
-mov rax, 4
-int 0x80
-jmp loop_tail
+print_string_end:
+    mov rbx, 1
+    mov rax, 4                  ; Syscall for write
+    int 0x80
+    ret
