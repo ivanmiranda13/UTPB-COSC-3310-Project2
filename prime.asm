@@ -1,5 +1,5 @@
 section .data
-newline db 0x0a, 0x00
+newline db 0x0a
 nl_len equ $ - newline
 nums db '123456789101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384858687888990919293949596979899'
 
@@ -21,10 +21,6 @@ _start:
 		cmp r10, 189           ; Check if we've reached the end of the array
 		jge loop_exit          ; Exit loop if done
 
-		; Check if the current number is prime
-		mov r12, r11           ; Save the current number in r12
-		call is_prime          ; Check if prime (result in rax: 1 = prime, 0 = not prime)
-
 		; Print the number
 		mov rcx, nums
 		add rcx, r10           ; Point to the current number in `nums`
@@ -38,9 +34,13 @@ _start:
 		add r10, rdx           ; Update index in `nums`
 		int 0x80
 
+		; Check if the current number is prime
+		mov r12, r11           ; Save the current number in r12
+		call is_prime          ; Check if prime (result in rax: 1 = prime, 0 = not prime)
+
 		; Print " is prime." or " is not prime."
-		test rax, rax          ; Check the result of `is_prime`
-		jnz print_prime
+		cmp rax, 1          ; Check the result of `is_prime`
+		je print_prime
 		mov rcx, not_prime_msg
 		mov rdx, not_prime_len
 		jmp print_end
@@ -75,7 +75,7 @@ _start:
 is_prime:
 	xor rax, rax             ; Default to not prime (rax = 0)
 	cmp r12, 2               ; Numbers less than 2 are not prime
-	jl done
+	jl not_prime
 	cmp r12, 2               ; 2 is prime
 	je prime
 
@@ -83,19 +83,22 @@ is_prime:
 is_prime_loop:
 	xor rdx, rdx             ; Clear remainder
 	mov rax, r12             ; Load the number into rax
-	div r13                  ; Divide r12 by r13 (quotient in rax, remainder in rdx)
-	test rdx, rdx            ; Check if remainder is 0
-	jz done                  ; If divisible, not prime
+	mov rbx, r13
+	div rbx                  ; Divide r12 by r13 (quotient in rax, remainder in rdx)
+	cmp rdx, 0            ; Check if remainder is 0
+	je not_prime                  ; If divisible, not prime
 
 	inc r13                  ; Check the next divisor
 	mov rbx, r13
+	mov rax, r13
 	mul rbx                  ; r13 * r13 (square of divisor)
-	cmp rbx, r12             ; Stop if divisor squared > number
+	cmp rax, r12             ; Stop if divisor squared > number
 	jg prime                 ; If no divisors found, it's prime
 	jmp is_prime_loop
 
+not_prime:
+  mov rax, 0
+  ret
 prime:
-	mov rax, 1               ; Set as prime
-
-done:
-	ret
+	mov rax, 1
+	ret ; Set as prime
